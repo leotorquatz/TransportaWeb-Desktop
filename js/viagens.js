@@ -12,6 +12,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     const idPartidaSelect = document.getElementById('id_partida');
     const idDestinoSelect = document.getElementById('id_destino');
     const idMotoristaSelect = document.getElementById('id_motorista');
+    
+    // Elementos para o modal de detalhes da viagem
+    const detalhesModalBackground = document.getElementById('detalhesModalBackground');
+    const closeDetalhesModalBtn = document.getElementById('closeDetalhesModal');
+    const detalhesIdViagem = document.getElementById('detalhesIdViagem');
+    const detalhesRemetente = document.getElementById('detalhesRemetente');
+    const detalhesDestinatario = document.getElementById('detalhesDestinatario');
+    const detalhesDataPartida = document.getElementById('detalhesDataPartida');
+    const detalhesMotorista = document.getElementById('detalhesMotorista');
+    const detalhesVeiculo = document.getElementById('detalhesVeiculo');
+    const detalhesCepPartida = document.getElementById('detalhesCepPartida');
+    const detalhesCepDestino = document.getElementById('detalhesCepDestino');
 
     verificarElementos([openModalBtn, modalBackground, closeModalBtn, modalForm, idVeiculoSelect, idPartidaSelect, idDestinoSelect, idMotoristaSelect]);
 
@@ -19,7 +31,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const [caminhoes, partidas, destinos, motoristas] = await Promise.all([
             getVeiculos(),
             getPartida(),
-            getDestino(),
+            getDestino(), 
             getMotoristas()
         ]);
 
@@ -55,7 +67,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     async function criarViagem(event) {
         event.preventDefault();
-
+    
         const novaViagem = {
             id_viagem: document.getElementById('id_viagem')?.value || '',
             dia_partida: document.getElementById('dia_partida')?.value || '',
@@ -69,9 +81,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             id_motorista: idMotoristaSelect?.value || null, 
             id_veiculo: idVeiculoSelect?.value || '',
         };
-
+    
         modalBackground.style.display = 'none';
-
+    
         const loadingAlert = Swal.fire({
             title: 'Carregando...',
             text: 'Aguarde enquanto processamos sua solicitação.',
@@ -79,19 +91,21 @@ document.addEventListener("DOMContentLoaded", async () => {
             allowOutsideClick: false,
             didOpen: () => Swal.showLoading(),
         });
-
+    
         try {
             const response = await postViagem(novaViagem);
             await loadingAlert.close();
-
-            if (response.status === 200) {
+    
+            if (response.status === 200 && response.data) {
+                const viagemCriada = response.data; // Objeto viagem criado com dados
                 await Swal.fire({
                     title: 'Sucesso!',
                     text: 'Viagem criada com sucesso!',
                     icon: 'success',
                     confirmButtonText: 'OK',
                 });
-                mostrarContainer();
+                mostrarContainer(); // Atualiza a lista de viagens
+                return viagemCriada;
             } else {
                 throw new Error('Erro ao criar a viagem.');
             }
@@ -103,9 +117,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 icon: 'error',
                 confirmButtonText: 'OK',
             });
+            console.error("Erro ao criar viagem:", error);
         }
     }
-
+    
     function verificarElementos(elementos) {
         elementos.forEach((elemento, index) => {
             if (!elemento) {
@@ -156,15 +171,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         container.append(cardContent, imageContainer);
         referenciar.appendChild(container);
+
+        // Adiciona o evento de clique para abrir o modal de detalhes
+        referenciar.addEventListener('click', () => abrirDetalhesModal(viagem));
+
         return referenciar;
     };
 
     async function mostrarContainer() {
         const containerCards = document.getElementById('container-cards');
         containerCards.innerHTML = '';
-
+    
         try {
-            const viagens = await getViagens();
+            const viagens = await getViagens(); // Obter as viagens completas do backend
             viagens.forEach(viagem => {
                 const card = criarContainer(viagem);
                 containerCards.appendChild(card);
@@ -173,8 +192,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.error('Erro ao carregar viagens:', error);
         }
     }
-
-    // Função para preencher os selects de veículos, partidas e destinos
+    
     function preencherSelect(lista, selectElement, displayProperty) {
         lista.forEach(item => {
             const option = document.createElement('option');
@@ -184,84 +202,77 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    // Função específica para preencher o select de motoristas com opção "Nenhum motorista"
     function preencherSelectMotoristas(motoristas, selectElement) {
         const noMotoristaOption = document.createElement('option');
         noMotoristaOption.value = null;
-        noMotoristaOption.textContent = "Nenhum motorista";
+        noMotoristaOption.textContent = 'Nenhum motorista';
         selectElement.appendChild(noMotoristaOption);
 
         motoristas.forEach(motorista => {
             const option = document.createElement('option');
             option.value = motorista.id;
-            option.textContent = motorista.nome; 
+            option.textContent = motorista.nome;
             selectElement.appendChild(option);
         });
     }
 
-    // Função para buscar viagens por ID
-    async function pesquisarViagem(id_viagem) {
+    async function pesquisarViagens() {
         const containerCards = document.getElementById('container-cards');
-        containerCards.innerHTML = ''; // Limpa o container
-
-        const loadingSpinner = document.createElement('div');
-        loadingSpinner.className = 'loading-spinner'; // Classe CSS para estilizar o indicador de carregamento
-        loadingSpinner.textContent = 'Pesquisando viagens...';
-        containerCards.appendChild(loadingSpinner); // Exibe o indicador de carregamento
+        const loadingSpinner = document.createElement("div");
+        loadingSpinner.className = "loading-spinner";
+        containerCards.appendChild(loadingSpinner);
 
         try {
-            const resultado = await getViagemByNome(id_viagem); // Chame a função para buscar viagens pelo ID
-            console.log("Resultado da pesquisa:", resultado); // Log da resposta
+            const termoPesquisa = document.getElementById("pesquisaViagem").value;
+            const viagens = await getViagemByNome(termoPesquisa);
 
-            // Verifique se o resultado é um array e se não está vazio
-            const viagens = Array.isArray(resultado) && resultado.length > 0 ? resultado : []; // Altere aqui
-
-            if (viagens.length > 0) {
-                // Exibe todas as viagens encontradas
+            if (viagens && viagens.length > 0) {
+                containerCards.innerHTML = '';
                 viagens.forEach(viagem => {
-                    const card = criarContainer(viagem); // Cria o card
-                    containerCards.appendChild(card); // Adiciona o card ao contêiner
+                    const card = criarContainer(viagem);
+                    containerCards.appendChild(card);
                 });
             } else {
-                await Swal.fire({
-                    title: 'Nenhuma viagem encontrada',
-                    text: 'Verifique o ID da viagem e tente novamente.',
-                    icon: 'info',
-                    confirmButtonText: 'OK',
-                });
+                containerCards.innerHTML = '<p>Nenhuma viagem encontrada.</p>';
             }
         } catch (error) {
-            console.error('Erro ao obter viagens:', error);
-            await Swal.fire({
-                title: 'Erro ao buscar viagens',
-                text: 'Ocorreu um erro ao buscar as viagens. Tente novamente mais tarde.',
-                icon: 'error',
-                confirmButtonText: 'OK',
-            });
+            console.error("Erro ao pesquisar viagens:", error);
         } finally {
-            containerCards.removeChild(loadingSpinner); // Remove o indicador de carregamento
+            loadingSpinner.remove();
         }
     }
 
-    // Event listener para a pesquisa
-    const pesquisaInput = document.getElementById('pesquisa'); 
-    console.log("Elemento de pesquisa encontrado:", pesquisaInput); 
-
-    if (pesquisaInput) {
-        let pesquisaTimeout;
-
-        pesquisaInput.addEventListener('input', () => {
-            clearTimeout(pesquisaTimeout);
-            pesquisaTimeout = setTimeout(async () => {
-                const id_viagem = pesquisaInput.value.trim();
-                console.log("ID da viagem pesquisado:", id_viagem); // Log do ID pesquisado
-                await pesquisarViagem(id_viagem); // Chama a função de pesquisa
-            }, 300); 
-        });
+    // Função para abrir o modal de detalhes
+    function abrirDetalhesModal(viagem) {
+        // Log do objeto viagem para depuração
+        console.log("Dados da viagem:", viagem);
+    
+        // Atualiza os elementos com as informações de viagem, se presentes
+        detalhesIdViagem.textContent = viagem.id_viagem || 'ID não encontrado';
+        detalhesRemetente.textContent = `Remetente: ${viagem.remetente || 'Remetente não especificado'}`;
+        detalhesDestinatario.textContent = `Destinatário: ${viagem.destinatario || 'Destinatário não especificado'}`;
+        detalhesDataPartida.textContent = `Data de Partida: ${viagem.dia_partida || 'Data não especificada'}`;
+    
+        // Verifica se há informações de motorista e veículo e exibe se disponíveis
+        detalhesMotorista.textContent = `Motorista: ${viagem.id_motorista ? viagem.id_motorista.nome : 'Nenhum motorista disponível'}`;
+        detalhesVeiculo.textContent = `Caminhão: ${viagem.id_veiculo ? viagem.id_veiculo.modelo : 'Nenhum caminhão disponível'}`;
+    
+        // Exibe CEP de Partida e Destino, se estiverem presentes
+        detalhesCepPartida.textContent = `CEP de Partida: ${viagem.id_partida || 'CEP de Partida não especificado'}`;
+        detalhesCepDestino.textContent = `CEP de Destino: ${viagem.id_destino || 'CEP de Destino não especificado'}`;
+    
+        // Exibe o modal de detalhes
+        detalhesModalBackground.style.display = 'flex';
     }
+    
+    closeDetalhesModalBtn.addEventListener('click', () => {
+        detalhesModalBackground.style.display = 'none';
+    });
+    detalhesModalBackground.addEventListener('click', (e) => {
+        if (e.target === detalhesModalBackground) {
+            detalhesModalBackground.style.display = 'none';
+        }
+    });
 
-    // Chame a função para mostrar viagens ao carregar a página
-    await mostrarContainer(); // Adicione 'await' aqui para garantir que as viagens sejam mostradas
+    mostrarContainer();
 });
-
-
